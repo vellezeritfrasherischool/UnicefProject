@@ -247,6 +247,31 @@ export async function sbUpsertAssignments(list: Assignment[]): Promise<void> {
   if (error) throwSb(error, "Nuk u ruajtën detyrat.");
 }
 
+/** Student-safe progress update. Uses UPDATE only so RLS never evaluates INSERT. */
+export async function sbUpdateOwnAssignmentProgress(
+  id: string,
+  patch: Pick<Assignment, "status"> & Partial<Pick<Assignment,
+    "score" | "completedAt" | "timeSpentMinutes" | "wordsOpened" | "audioUsed" | "attempts"
+  >>
+): Promise<Assignment> {
+  const row: Record<string, unknown> = { status: patch.status };
+  if (patch.score !== undefined) row.score = patch.score;
+  if (patch.completedAt !== undefined) row.completed_at = patch.completedAt;
+  if (patch.timeSpentMinutes !== undefined) row.time_spent_minutes = patch.timeSpentMinutes;
+  if (patch.wordsOpened !== undefined) row.words_opened = patch.wordsOpened;
+  if (patch.audioUsed !== undefined) row.audio_used = patch.audioUsed;
+  if (patch.attempts !== undefined) row.attempts = patch.attempts;
+
+  const { data, error } = await getSupabase()
+    .from("assignments")
+    .update(row)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throwSb(error, "Nuk u përditësua detyra.");
+  return rowToAssignment(data as AssignmentRow);
+}
+
 export async function sbGetAssignmentById(id: string): Promise<Assignment | undefined> {
   const { data, error } = await getSupabase()
     .from("assignments")
@@ -590,42 +615,6 @@ export async function sbCreateStudentAccount(input: {
   return rowToStudent(data.student as StudentRow);
 }
 
-export async function sbRegisterStudentAccount(
-  name: string,
-  email: string,
-  password: string
-): Promise<User> {
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanName = name.trim();
-  if (!cleanName) throw new Error("Emri është i detyrueshëm.");
-  if (password.length < 6) throw new Error("Fjalëkalimi duhet të ketë së paku 6 karaktere.");
-
-  const sb = getSupabase();
-  const { data, error } = await sb.auth.signUp({
-    email: cleanEmail,
-    password,
-    options: { data: { name: cleanName, role: "student" } },
-  });
-  if (error) throwSb(error, "Regjistrimi i nxënësit dështoi.");
-  if (!data.user) {
-    throw new Error(
-      "Regjistrimi dështoi. Çaktivizo 'Confirm email' te Supabase Auth settings."
-    );
-  }
-
-  const user: User = {
-    id: data.user.id,
-    name: cleanName,
-    email: cleanEmail,
-    role: "student",
-  };
-  if (!data.session) {
-    throw new Error("Llogaria u krijua. Kontrollo email-in, konfirmoje dhe pastaj hyr për t’u bashkuar me klasën.");
-  }
-  await sbUpsertProfile(user);
-  return user;
-}
-
 export async function sbJoinClassWithCode(
   userId: string,
   joinCode: string,
@@ -639,20 +628,27 @@ export async function sbJoinClassWithCode(
   return { student: rowToStudent(data.student as StudentRow), user: data.user as User };
 }
 
-/** Optional: register + join in one step if joinCode provided. */
+/** Create a confirmed student account and enroll it using a valid class code. */
 export async function sbRegisterStudentSelf(input: {
   name: string;
   email: string;
   password: string;
-  joinCode?: string;
+  joinCode: string;
   age?: number;
 }): Promise<User> {
-  const user = await sbRegisterStudentAccount(input.name, input.email, input.password);
-  if (input.joinCode?.trim()) {
-    const { user: joined } = await sbJoinClassWithCode(user.id, input.joinCode, { age: input.age });
-    return joined;
-  }
-  return user;
+  const email = input.email.trim().toLowerCase();
+  const { data, error } = await getSupabase().functions.invoke("register-student", {
+    body: {
+      name: input.name.trim(),
+      email,
+      password: input.password,
+      joinCode: input.joinCode.trim(),
+      age: input.age,
+    },
+  });
+  if (error) throw new Error(await functionErrorMessage(error, "Regjistrimi i nxënësit dështoi."));
+  if (!data?.registered) throw new Error("Serveri nuk e përfundoi regjistrimin.");
+  return sbSignIn(email, input.password);
 }
 
 export async function sbUpdateStudent(id: string, patch: Partial<Student>): Promise<Student | undefined> {

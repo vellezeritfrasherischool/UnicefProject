@@ -3,7 +3,7 @@
 ## Launch blockers until staging verification
 
 - Migration 003 and updated functions must pass the full multi-user QA checklist.
-- Custom SMTP and confirmed-email links need a school-controlled sending domain.
+- Password-reset and notification emails need a school-controlled SMTP domain.
 - Automated database/RLS integration tests require an isolated CI Supabase project.
 - Backup restore has not yet been exercised.
 
@@ -22,4 +22,3 @@
 - Configurable school branding and per-school AI budgets.
 - Expanded accessibility testing with students and assistive technology.
 - Fine-grained admin audit history and teacher reactivation workflows.
-

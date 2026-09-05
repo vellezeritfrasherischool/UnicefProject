@@ -22,10 +22,16 @@
 
 ## Student workflow
 
+- [ ] Registration requires a valid class code and signs in without an email-confirmation message.
+- [ ] Invalid class codes and duplicate emails fail without leaving partial student records.
+- [ ] Font family, font size, line spacing, letter spacing, contrast, dark mode,
+      reduced motion and language visibly update and persist after refresh.
 - [ ] Assigned material appears in a separate browser.
 - [ ] Reading preferences, vocabulary, translation and illustration work.
 - [ ] Albanian and English audio play and long text advances through chunks.
 - [ ] Quiz scoring, attempts and assignment completion persist after refresh.
+- [ ] Quiz score appears immediately and identically in results, teacher roster,
+      analytics and the generated report workflow (including when AI analysis fails).
 - [ ] Report, profile, flashcards and Memory Booster persist across browsers.
 
 ## Operations
@@ -35,4 +41,3 @@
 - [ ] CI passes on a pull request.
 - [ ] Staging has its own Supabase project, OpenAI key/limits and URL.
 - [ ] Database backup and restore procedure has been tested.
-

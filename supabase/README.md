@@ -14,9 +14,10 @@ Run `schema_learning.sql` (`learning_profiles`, `learning_reports`, `flashcards`
 
 Full cloud demo = all four SQL files (schema → auth → gamification → learning).
 
-## 3) Disable email confirmation (important)
-**Authentication → Providers → Email → turn OFF "Confirm email"**  
-Otherwise new accounts cannot log in until they confirm.
+## 3) Deploy student registration
+Deploy `register-student` with `--no-verify-jwt`. Student self-registration requires
+a valid class code and the server creates an already-confirmed account. Supabase's
+global **Confirm email** setting can remain enabled for other signup flows.
 
 ## 4) Env
 ```env

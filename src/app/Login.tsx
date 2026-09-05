@@ -68,7 +68,7 @@ export default function Login() {
         name,
         email,
         password,
-        joinCode: joinCode.trim() || undefined,
+        joinCode: joinCode.trim(),
       });
       login(user);
       finish(user);
@@ -220,10 +220,10 @@ export default function Login() {
 
             {mode === "register-student" && (
               <div>
-                <label htmlFor="join" className="block mb-2">{t("login.joinCodeOptional")}</label>
+                <label htmlFor="join" className="block mb-2">{t("login.joinCode")}</label>
                 <input id="join" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
-                  placeholder="ABC123" className="ui-input tracking-widest font-bold uppercase" maxLength={8} />
-                <p className="text-xs text-muted-foreground mt-1.5">{t("login.joinCodeOptionalHint")}</p>
+                  placeholder="ABC123" required pattern="[A-Z2-9]{6,8}" className="ui-input tracking-widest font-bold uppercase" maxLength={8} />
+                <p className="text-xs text-muted-foreground mt-1.5">{t("login.joinCodeHint")}</p>
               </div>
             )}
 

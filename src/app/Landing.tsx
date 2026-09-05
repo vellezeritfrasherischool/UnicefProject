@@ -15,7 +15,7 @@ const features = [
 ];
 
 const stepMeta = [
-  { n: "01", icon: Upload, titleKey: "landing.step1", desc: "Shto tekst, PDF, Word ose foto të materialit mësimor." },
+  { n: "01", icon: Upload, titleKey: "landing.step1", desc: "Shto tekst ose PDF të materialit mësimor." },
   { n: "02", icon: Wand2, titleKey: "landing.step2", desc: "AI thjeshtëson, përmbledh, krijon fjalor dhe pyetje." },
   { n: "03", icon: Eye, titleKey: "landing.step3", desc: "Mësuesi kontrollon dhe aprovat materialin e adaptuar." },
   { n: "04", icon: Share2, titleKey: "landing.step4", desc: "Nxënësi merr materialin të personalizuar për të." },
@@ -59,7 +59,7 @@ export default function Landing() {
             <Link to="/login" className="ui-btn-primary px-7 py-3.5 text-base">
               {t("landing.startTeacher")} <ArrowRight size={18} />
             </Link>
-            <Link to="/login" className="ui-btn-secondary px-7 py-3.5 text-base">
+            <Link to="/demo" className="ui-btn-secondary px-7 py-3.5 text-base">
               {t("landing.watchDemo")}
             </Link>
           </div>
@@ -186,9 +186,9 @@ export default function Landing() {
           <div className="bg-primary rounded-3xl p-10 text-primary-foreground">
             <BookOpen size={36} className="mx-auto mb-4 opacity-80" />
             <h2 className="text-3xl font-bold mb-3">{t("landing.cta")}</h2>
-            <p className="text-primary-foreground/80 mb-6">Hyrni me llogarinë demo dhe shikoni si funksionon.</p>
-            <Link to="/login" className="bg-white text-primary font-semibold px-8 py-3.5 rounded-2xl hover:bg-primary-foreground/90 transition-colors inline-flex items-center gap-2">
-              {t("landing.startNow")} <ArrowRight size={18} />
+            <p className="text-primary-foreground/80 mb-6">Shikoni demonstrimin publik pa krijuar llogari.</p>
+            <Link to="/demo" className="bg-white text-primary font-semibold px-8 py-3.5 rounded-2xl hover:bg-primary-foreground/90 transition-colors inline-flex items-center gap-2">
+              {t("landing.watchDemo")} <ArrowRight size={18} />
             </Link>
           </div>
         </div>

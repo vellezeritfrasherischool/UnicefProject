@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router";
 import {
   LayoutDashboard, Users, BookOpen, BarChart3, Settings,
-  Bell, ChevronLeft, ChevronRight, LogOut,
+  ChevronLeft, ChevronRight, LogOut,
   Award, Menu, ShieldCheck,
 } from "lucide-react";
 import { useApp } from "./store";
@@ -13,6 +13,7 @@ import { APP_NAME } from "./brand";
 import { useT } from "./useT";
 import { Toaster } from "sonner";
 import { getSupabase, isSupabaseEnabled } from "./supabase";
+import NotificationsDropdown from "./NotificationsDropdown";
 
 export default function TeacherLayout() {
   const { user, logout, setAccessibilityOpen } = useApp();
@@ -154,10 +155,7 @@ export default function TeacherLayout() {
             <Menu size={22} />
           </button>
           <div className="ml-auto flex items-center gap-1">
-            <button className="relative p-2.5 rounded-2xl hover:bg-muted transition-colors min-h-11 min-w-11 flex items-center justify-center" aria-label={t("nav.notifications")}>
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary ring-2 ring-card" />
-            </button>
+            <NotificationsDropdown role="teacher" userId={user?.id} />
             <button onClick={() => setAccessibilityOpen(true)} className="p-2.5 rounded-2xl hover:bg-muted transition-colors min-h-11 min-w-11 flex items-center justify-center" aria-label={t("a11y.open")}>
               <AccessibilityIcon size={20} />
             </button>

@@ -27,7 +27,8 @@
   a minimal school-admin UI/API, invitation lifecycle controls and teacher bans.
 - Added database-backed AI usage records and per-user minute quotas without
   storing prompts or student content.
-- Added an Auth trigger for email-confirmed student profiles.
+- Added class-code-gated student registration that creates confirmed accounts
+  server-side and enrolls students without confirmation email.
 - Added Vitest coverage for deterministic cohorts and safe TTS chunking, a CI
   workflow, Vercel SPA configuration, and a staging environment template.
 

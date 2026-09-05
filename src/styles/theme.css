@@ -50,6 +50,75 @@
   --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.04);
   --shadow-md: 0 8px 24px -6px rgb(15 23 42 / 0.08), 0 2px 8px -2px rgb(15 23 42 / 0.04);
   --shadow-lg: 0 16px 40px -12px rgb(15 23 42 / 0.12);
+  --a11y-line-height: 1.6;
+  --a11y-letter-spacing: 0em;
+}
+
+/* Accessibility overrides are intentionally global so utility classes such as
+   `leading-*`, `tracking-*`, and `font-sans` cannot silently defeat the controls. */
+html body,
+html body button,
+html body input,
+html body textarea,
+html body select {
+  font-family: var(--font-ui);
+}
+
+html body :where(p, li, label, input, textarea, select, button, a, span) {
+  line-height: var(--a11y-line-height) !important;
+  letter-spacing: var(--a11y-letter-spacing) !important;
+}
+
+html[data-high-contrast="true"] {
+  --background: #FFFFFF;
+  --foreground: #000000;
+  --card: #FFFFFF;
+  --card-foreground: #000000;
+  --primary: #3020C0;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E5E2FF;
+  --secondary-foreground: #170D78;
+  --muted: #ECEFF3;
+  --muted-foreground: #30343B;
+  --accent: #E5E2FF;
+  --accent-foreground: #170D78;
+  --border: #4B5563;
+  --input-background: #FFFFFF;
+  --success: #12633E;
+  --success-muted: #D7F2E3;
+  --success-muted-foreground: #073F27;
+  --warning-muted: #FFF0B8;
+  --warning-muted-foreground: #513D00;
+}
+
+html.dark[data-high-contrast="true"] {
+  --background: #000000;
+  --foreground: #FFFFFF;
+  --card: #080808;
+  --card-foreground: #FFFFFF;
+  --primary: #B8AEFF;
+  --primary-foreground: #000000;
+  --secondary: #252047;
+  --secondary-foreground: #FFFFFF;
+  --muted: #171717;
+  --muted-foreground: #E5E7EB;
+  --accent: #252047;
+  --accent-foreground: #FFFFFF;
+  --border: #D1D5DB;
+  --input-background: #080808;
+}
+
+html[data-reduced-motion="true"] {
+  scroll-behavior: auto;
+}
+
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
 }
 
 .dark {

@@ -46,6 +46,7 @@ import {
   sbGetAssignments,
   sbGetAssignmentsForStudent,
   sbUpsertAssignments,
+  sbUpdateOwnAssignmentProgress,
   sbDeleteAssignmentsForMaterial,
   sbGetAssignmentById,
   sbRegisterTeacher,
@@ -129,12 +130,13 @@ export const authService = {
     name: string;
     email: string;
     password: string;
-    joinCode?: string;
+    joinCode: string;
   }): Promise<User> {
     if (!isSupabaseEnabled()) {
       throw new Error("Regjistrimi kërkon Supabase. Aktivizo VITE_USE_SUPABASE në .env.");
     }
     if (input.password.length < 8) throw new Error("Fjalëkalimi duhet të ketë së paku 8 karaktere.");
+    if (!input.joinCode.trim()) throw new Error("Kodi i klasës është i detyrueshëm.");
     return sbRegisterStudentSelf(input);
   },
 
@@ -460,6 +462,10 @@ export const studentService = {
 // ── Assignments ───────────────────────────────────────────────────────────────
 
 export const assignmentService = {
+  async getAll(): Promise<Assignment[]> {
+    await delay(100);
+    return isSupabaseEnabled() ? sbGetAssignments() : getAssignments();
+  },
   async getForStudent(studentId: string): Promise<Assignment[]> {
     await delay(150);
     if (isSupabaseEnabled()) {
@@ -494,8 +500,7 @@ export const assignmentService = {
     await delay(150);
     const asgn: Assignment = { ...data, id: `asgn-${Date.now()}` };
     if (isSupabaseEnabled()) {
-      await sbUpsertAssignments([asgn]);
-      return asgn;
+      throw new Error("Ky material nuk të është caktuar nga mësuesja.");
     }
     setAssignments([asgn, ...getAssignments()]);
     return asgn;
@@ -505,7 +510,7 @@ export const assignmentService = {
     if (isSupabaseEnabled()) {
       const asgn = await sbGetAssignmentById(id);
       if (!asgn || asgn.status !== "pending") return;
-      await sbUpsertAssignments([{ ...asgn, status: "in-progress" }]);
+      await sbUpdateOwnAssignmentProgress(id, { status: "in-progress" });
       return;
     }
     setAssignments(getAssignments().map(a =>
@@ -523,8 +528,7 @@ export const assignmentService = {
     if (isSupabaseEnabled()) {
       const asgn = await sbGetAssignmentById(id);
       if (!asgn) return;
-      const updated: Assignment = {
-        ...asgn,
+      await sbUpdateOwnAssignmentProgress(id, {
         status: "completed",
         score,
         completedAt: new Date().toISOString().split("T")[0],
@@ -532,17 +536,27 @@ export const assignmentService = {
         audioUsed,
         attempts: (asgn.attempts ?? 0) + 1,
         ...(extras?.timeSpentMinutes != null ? { timeSpentMinutes: extras.timeSpentMinutes } : {}),
-      };
-      await sbUpsertAssignments([updated]);
+      });
 
-      const related = (await sbGetAssignments()).filter(a => a.materialId === asgn.materialId);
-      const done = related.filter(a => a.status === "completed").length;
-      const rate = related.length ? Math.round((done / related.length) * 100) : 0;
-      const mat = await sbGetMaterialById(asgn.materialId);
-      if (mat) await sbUpsertMaterial({ ...mat, completionRate: rate });
+      // Keep the roster summary in sync with assignment truth so teacher cards
+      // do not continue showing the student's initial 0% score.
+      const studentAssignments = await sbGetAssignmentsForStudent(asgn.studentId);
+      const completedForStudent = studentAssignments.filter(a => a.status === "completed" && a.score != null);
+      const student = await sbGetStudentById(asgn.studentId);
+      if (student && completedForStudent.length) {
+        const average = Math.round(
+          completedForStudent.reduce((sum, item) => sum + (item.score ?? 0), 0) / completedForStudent.length
+        );
+        await sbUpdateStudent(student.id, {
+          score: average,
+          completedMaterials: completedForStudent.length,
+        });
+      }
+
       return;
     }
 
+    const previousAssignment = getAssignments().find(a => a.id === id);
     setAssignments(getAssignments().map(a =>
       a.id === id ? {
         ...a,
@@ -555,6 +569,18 @@ export const assignmentService = {
         ...(extras?.timeSpentMinutes != null ? { timeSpentMinutes: extras.timeSpentMinutes } : {}),
       } : a
     ));
+
+    const completedForStudent = getAssignments().filter(
+      a => a.studentId === previousAssignment?.studentId && a.status === "completed" && a.score != null
+    );
+    if (previousAssignment && completedForStudent.length) {
+      const average = Math.round(
+        completedForStudent.reduce((sum, item) => sum + (item.score ?? 0), 0) / completedForStudent.length
+      );
+      setStudents(getStudents().map(student => student.id === previousAssignment.studentId
+        ? { ...student, score: average, completedMaterials: completedForStudent.length }
+        : student));
+    }
 
     const asgn = getAssignments().find(a => a.id === id);
     if (asgn) {
@@ -830,6 +856,19 @@ export const learningService = {
       subject: material?.subject ?? "",
     };
 
+    // Commit the verified quiz outcome before the slower AI generation. This
+    // makes results and teacher dashboards consistent in real time, even if
+    // report generation later fails or takes several seconds.
+    if (!input.skipAssignmentComplete) {
+      await assignmentService.complete(
+        input.assignmentId,
+        input.score,
+        vocabOpened,
+        audioPlayCount > 0,
+        { timeSpentMinutes }
+      );
+    }
+
     const existing = isSupabaseEnabled()
       ? await sbGetLearningProfile(input.studentId)
       : getLearningProfile(input.studentId);
@@ -925,16 +964,6 @@ export const learningService = {
       addLearningReport(report);
       upsertLearningProfile(profile);
       addMemoryBooster(booster);
-    }
-
-    if (!input.skipAssignmentComplete) {
-      await assignmentService.complete(
-        input.assignmentId,
-        input.score,
-        vocabOpened,
-        audioPlayCount > 0,
-        { timeSpentMinutes }
-      );
     }
 
     clearSessionStart(input.studentId, input.materialId);

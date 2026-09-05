@@ -236,7 +236,9 @@ In the Supabase Dashboard → **SQL Editor**, run these files **in order**:
 | 3 | `supabase/schema_gamification.sql` | `xp_transactions` (Stars), `student_badges` (Titles) |
 | 4 | `supabase/schema_learning.sql` | `learning_profiles`, `learning_reports`, `flashcards`, `memory_boosters`, `learning_events` |
 
-Also: **Authentication → Providers → Email → disable “Confirm email”** so new accounts can log in immediately.
+Deploy `register-student` with `--no-verify-jwt`. It securely creates confirmed
+student accounts only when a valid class code is supplied, so the global
+**Confirm email** setting does not need to be disabled.
 
 ---
 
@@ -553,7 +555,9 @@ Në Supabase Dashboard → **SQL Editor**, ekzekuto këto skedarë **me radhë**
 | 3 | `supabase/schema_gamification.sql` | `xp_transactions` (Yje), `student_badges` (Tituj) |
 | 4 | `supabase/schema_learning.sql` | `learning_profiles`, `learning_reports`, `flashcards`, `memory_boosters`, `learning_events` |
 
-Gjithashtu: **Authentication → Providers → Email → çaktivizo “Confirm email”** që llogaritë e reja të hyjnë menjëherë.
+Deplojo `register-student` me `--no-verify-jwt`. Funksioni krijon në mënyrë të
+sigurt llogari të konfirmuara vetëm me kod të vlefshëm klase, prandaj nuk duhet
+të çaktivizohet globalisht opsioni **Confirm email**.
 
 ---
 

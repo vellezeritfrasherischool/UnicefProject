@@ -155,12 +155,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const root = document.documentElement;
+    const fonts: Record<AccessibilitySettings["readingFont"], string> = {
+      inter: '"Nunito", system-ui, sans-serif',
+      lexend: '"Lexend", system-ui, sans-serif',
+      atkinson: '"Atkinson Hyperlegible", system-ui, sans-serif',
+    };
     root.style.fontSize = `${accessibility.fontSize}px`;
+    root.style.setProperty("--font-ui", fonts[accessibility.readingFont]);
+    root.style.setProperty("--a11y-line-height", String(accessibility.lineSpacing));
+    root.style.setProperty("--a11y-letter-spacing", `${accessibility.letterSpacing}em`);
     root.lang = accessibility.appLanguage === "en" ? "en" : "sq";
     if (accessibility.darkMode) root.classList.add("dark");
     else root.classList.remove("dark");
     if (accessibility.highContrast) root.setAttribute("data-high-contrast", "true");
     else root.removeAttribute("data-high-contrast");
+    if (accessibility.reducedMotion) root.setAttribute("data-reduced-motion", "true");
+    else root.removeAttribute("data-reduced-motion");
   }, [accessibility]);
 
   return (

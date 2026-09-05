@@ -23,6 +23,7 @@ import Results from "./Results";
 import StudentRewards from "./StudentRewards";
 import StudentPractice from "./StudentPractice";
 import SchoolAdmin from "./SchoolAdmin";
+import Demo from "./Demo";
 
 function ProtectedRoute({ children, role }: { children: React.ReactNode; role?: "teacher" | "student" }) {
   const { user, authReady } = useApp();
@@ -74,6 +75,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/demo" element={<Demo />} />
       <Route
         path="/login"
         element={

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router";
-import { LayoutDashboard, Trophy, Settings, Bell, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Trophy, Settings, LogOut, Menu, X } from "lucide-react";
 import { useApp } from "./store";
 import AccessibilityPanel from "./AccessibilityPanel";
 import { AccessibilityIcon } from "./AccessibilityIcon";
@@ -8,6 +8,7 @@ import { AppLogo } from "./AppLogo";
 import { APP_NAME } from "./brand";
 import { useT } from "./useT";
 import { Toaster } from "sonner";
+import NotificationsDropdown from "./NotificationsDropdown";
 
 export default function StudentLayout() {
   const { user, logout, setAccessibilityOpen } = useApp();
@@ -134,10 +135,7 @@ export default function StudentLayout() {
             {lang === "en" ? "Hi" : "Përshëndetje"}, {user?.name?.split(" ")[0]}
           </p>
           <div className="ml-auto flex items-center gap-1">
-            <button className="relative p-2.5 rounded-2xl hover:bg-muted min-h-11 min-w-11 flex items-center justify-center" aria-label={t("nav.notifications")}>
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary ring-2 ring-card" />
-            </button>
+            <NotificationsDropdown role="student" userId={user?.id} />
             <button onClick={() => setAccessibilityOpen(true)} className="p-2.5 rounded-2xl hover:bg-muted min-h-11 min-w-11 flex items-center justify-center" aria-label={t("a11y.open")}>
               <AccessibilityIcon size={20} />
             </button>

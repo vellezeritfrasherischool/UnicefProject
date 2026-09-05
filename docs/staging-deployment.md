@@ -43,6 +43,7 @@ supabase functions deploy ai-gateway
 supabase functions deploy provision-student
 supabase functions deploy join-class
 supabase functions deploy register-invited-teacher --no-verify-jwt
+supabase functions deploy register-student --no-verify-jwt
 supabase functions deploy school-admin
 ```
 
@@ -54,7 +55,6 @@ supabase functions deploy school-admin
 - Classes and materials contain the expected `school_id`.
 - AI requests add rows to `ai_usage_events` without storing prompt content.
 - Twenty requests per minute are allowed per user; excess requests return 429.
-- Confirmed-email student signup creates a minimal profile, then joins a class
-  only after confirmation and login.
+- Student signup requires a valid class code, creates an already-confirmed account,
+  enrolls the student, and signs in without sending confirmation email.
 - Direct navigation to every SPA route works on Vercel.
-

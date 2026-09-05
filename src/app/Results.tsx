@@ -102,7 +102,7 @@ export default function Results() {
           { icon: Clock, label: t("res.duration"), value: `${assignment.timeSpentMinutes ?? "—"} min` },
           { icon: BookOpen, label: t("res.wordsOpened"), value: `${assignment.wordsOpened ?? 0}` },
           { icon: Headphones, label: t("res.audioUsed"), value: assignment.audioUsed ? t("common.yes") : t("common.no") },
-          { icon: RefreshCw, label: t("res.attempts"), value: `${assignment.attempts ?? 1}` },
+          { icon: RefreshCw, label: t("res.attempts"), value: `${Math.max(1, assignment.attempts ?? 0)}` },
         ].map(stat => (
           <div key={stat.label} className="ui-card p-4 text-center">
             <stat.icon size={18} className="text-muted-foreground mx-auto mb-2" />

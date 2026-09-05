@@ -2,18 +2,12 @@
 import { useParams, useNavigate, Link } from "react-router";
 import { ChevronLeft, ChevronRight, Lightbulb, RotateCcw, X, Check, Sparkles, Loader2, Headphones, Volume2, ImageIcon } from "lucide-react";
 import { aiService, gamificationService, learningService, materialService, assignmentService, studentService } from "./services";
-import { trackLearningEvent } from "./learningTracker";
+import { markSessionStart, trackLearningEvent } from "./learningTracker";
+import { correctOptionIndex, isCorrectQuizAnswer, normalizeQuizQuestionIds } from "./quizScoring";
 import { useApp } from "./store";
 import { toast } from "sonner";
 import type { Material, QuizQuestion, WrongQuestionDetail, Student } from "./types";
 import { useT } from "./useT";
-
-function isCorrectAnswer(q: QuizQuestion, ans: unknown): boolean {
-  if (q.type === "short" || q.type === "mainidea" || !q.options?.length) {
-    return String(ans ?? "").toLowerCase().includes(String(q.correct).toLowerCase());
-  }
-  return ans === q.correct;
-}
 
 function formatAnswer(q: QuizQuestion, ans: unknown): string {
   if (q.type === "short" || q.type === "mainidea" || !q.options?.length) return String(ans ?? "");
@@ -150,6 +144,15 @@ export default function Quiz() {
       setPlayingKind(kind);
       setPlayingOptionIndex(kind === "option" && typeof optionIndex === "number" ? optionIndex : null);
       await audio.play();
+      if (user && material) {
+        trackLearningEvent({
+          studentId: user.id,
+          materialId: material.id,
+          assignmentId: assignmentId ?? undefined,
+          type: "audio",
+          detail: `quiz_${kind}`,
+        });
+      }
       if (session !== playSessionRef.current) {
         audio.pause();
       }
@@ -167,7 +170,7 @@ export default function Quiz() {
         setOptionAudioLoading(null);
       }
     }
-  }, [stopAudio]);
+  }, [assignmentId, material, stopAudio, user]);
 
   useEffect(() => {
     if (!id) return;
@@ -175,11 +178,13 @@ export default function Quiz() {
       const m = await materialService.getById(id);
       setMaterial(m ?? null);
       if (m) {
-        setQueue(m.quiz);
-        setCoreIds(new Set(m.quiz.map(q => q.id)));
-        setCoreTotal(m.quiz.length);
+        const normalizedQuiz = normalizeQuizQuestionIds(m.quiz);
+        setQueue(normalizedQuiz);
+        setCoreIds(new Set(normalizedQuiz.map(q => q.id)));
+        setCoreTotal(normalizedQuiz.length);
       }
       if (m && user) {
+        markSessionStart(user.id, m.id);
         const [asgn, stu] = await Promise.all([
           assignmentService.getByMaterialForStudent(m.id, user.id),
           studentService.getById(user.id),
@@ -299,7 +304,7 @@ export default function Quiz() {
   const hasOptions = Boolean(q?.options && q.options.length > 0);
   const userAnswer = answers[q?.id];
   const isAnswered = userAnswer !== undefined && String(userAnswer).trim() !== "";
-  const answeredCorrect = q ? isCorrectAnswer(q, userAnswer) : false;
+  const answeredCorrect = q ? isCorrectQuizAnswer(q, userAnswer) : false;
   const audioAllowed = material.audioEnabled !== false;
 
   // Progress against the original N questions (e.g. 8), not adaptive extras
@@ -339,7 +344,7 @@ export default function Quiz() {
 
   const submitAnswer = async () => {
     if (!isAnswered || submitted || !q) return;
-    const correct = isCorrectAnswer(q, userAnswer);
+    const correct = isCorrectQuizAnswer(q, userAnswer);
     setSubmitted(true);
 
     if (user && material) {
@@ -473,7 +478,7 @@ export default function Quiz() {
     setAudioSpeed(1);
     let correct = 0;
     coreQuestions.forEach(question => {
-      if (isCorrectAnswer(question, answers[question.id])) correct++;
+      if (isCorrectQuizAnswer(question, answers[question.id])) correct++;
     });
     const denom = Math.max(1, coreQuestions.length);
     const pct = Math.round((correct / denom) * 100);
@@ -509,7 +514,10 @@ export default function Quiz() {
       toast.error(message);
       if (asgnId) {
         try {
-          await assignmentService.complete(asgnId, pct, 0, false);
+          const saved = await assignmentService.getById(asgnId);
+          if (saved?.status !== "completed" || saved.score !== pct) {
+            await assignmentService.complete(asgnId, pct, 0, false);
+          }
         } catch { /* ignore */ }
       }
     } finally {
@@ -568,7 +576,7 @@ export default function Quiz() {
               <div className="bg-muted/40 rounded-2xl p-4 mb-6 grid grid-cols-2 gap-3 text-sm">
                 <div className="bg-success-muted rounded-xl p-3 text-center">
                   <p className="text-2xl font-extrabold text-success-muted-foreground">
-                    {coreQuestions.filter(q2 => isCorrectAnswer(q2, answers[q2.id])).length}/{coreQuestions.length}
+                    {coreQuestions.filter(q2 => isCorrectQuizAnswer(q2, answers[q2.id])).length}/{coreQuestions.length}
                   </p>
                   <p className="text-xs text-success font-semibold">{t("quiz.correctLabel")}</p>
                 </div>
@@ -716,7 +724,7 @@ export default function Quiz() {
           <div className="space-y-2.5">
             {q.options!.map((opt, i) => {
               const selected = userAnswer === i;
-              const isCorrect = i === q.correct;
+              const isCorrect = i === correctOptionIndex(q);
               let cls = "border-2 border-border hover:border-primary/30 hover:bg-primary/5";
               if (submitted && selected && isCorrect) cls = "border-2 border-success bg-success-muted";
               else if (submitted && selected && !isCorrect) cls = "border-2 border-destructive/50 bg-destructive/5";
@@ -839,9 +847,10 @@ export default function Quiz() {
 
       <div className="flex justify-between items-center gap-3">
         <button onClick={() => {
-          setQueue(material.quiz);
-          setCoreIds(new Set(material.quiz.map(x => x.id)));
-          setCoreTotal(material.quiz.length);
+          const normalizedQuiz = normalizeQuizQuestionIds(material.quiz);
+          setQueue(normalizedQuiz);
+          setCoreIds(new Set(normalizedQuiz.map(x => x.id)));
+          setCoreTotal(normalizedQuiz.length);
           setCurrentIdx(0);
           setAnswers({});
           setSubmitted(false);
