@@ -5,6 +5,7 @@ import type {
   Material, Student, ClassGroup, Assignment,
   Badge, StudentBadge, XPTransaction, StudentLevel, BadgeProgress, QuizQuestion
 } from "./types";
+import { planNewAssignments } from "./assignmentPlanning";
 import {
   adaptMaterialWithAI,
   explainSentenceWithAI,
@@ -115,12 +116,13 @@ export const authService = {
     throw new Error("Email ose fjalëkalimi është i gabuar.");
   },
 
-  async registerTeacher(name: string, email: string, password: string): Promise<User> {
+  async registerTeacher(name: string, email: string, password: string, invitation: string): Promise<User> {
     if (!isSupabaseEnabled()) {
       throw new Error("Regjistrimi kërkon Supabase. Aktivizo VITE_USE_SUPABASE në .env.");
     }
-    if (password.length < 6) throw new Error("Fjalëkalimi duhet të ketë së paku 6 karaktere.");
-    return sbRegisterTeacher(name, email, password);
+    if (password.length < 8) throw new Error("Fjalëkalimi duhet të ketë së paku 8 karaktere.");
+    if (!invitation.trim()) throw new Error("Kodi i ftesës është i detyrueshëm.");
+    return sbRegisterTeacher(name, email, password, invitation);
   },
 
   async registerStudent(input: {
@@ -132,7 +134,7 @@ export const authService = {
     if (!isSupabaseEnabled()) {
       throw new Error("Regjistrimi kërkon Supabase. Aktivizo VITE_USE_SUPABASE në .env.");
     }
-    if (input.password.length < 6) throw new Error("Fjalëkalimi duhet të ketë së paku 6 karaktere.");
+    if (input.password.length < 8) throw new Error("Fjalëkalimi duhet të ketë së paku 8 karaktere.");
     return sbRegisterStudentSelf(input);
   },
 
@@ -167,35 +169,8 @@ export const authService = {
 
 async function publishMaterialCloud(material: Material): Promise<number> {
   const classStudents = await sbGetStudentsByClassName(material.class);
-  const targetIds = material.targetStudentIds?.filter(Boolean);
-  const students =
-    targetIds && targetIds.length > 0
-      ? classStudents.filter(s => targetIds.includes(s.id))
-      : classStudents;
-
   const existing = await sbGetAssignments();
-  const today = new Date().toISOString().split("T")[0];
-  const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const created: Assignment[] = [];
-
-  for (const student of students) {
-    const already = existing.some(
-      a => a.materialId === material.id && a.studentId === student.id
-    );
-    if (already) continue;
-    created.push({
-      id: `asgn-${material.id}-${student.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      materialId: material.id,
-      studentId: student.id,
-      deadline,
-      startDate: today,
-      allowRetry: true,
-      showAnswers: true,
-      enableAudio: true,
-      status: "pending",
-      attempts: 0,
-    });
-  }
+  const { students, assignments: created } = planNewAssignments(material, classStudents, existing);
 
   const published: Material = {
     ...material,
@@ -921,9 +896,7 @@ export const learningService = {
         ...c,
         id: `fc-${input.materialId}-mb-${i}`,
       }));
-      if (isSupabaseEnabled()) {
-        await sbUpsertFlashcardsForMaterial(input.materialId, materialCards);
-      } else {
+      if (!isSupabaseEnabled()) {
         upsertFlashcardsForMaterial(input.materialId, materialCards);
       }
     }
@@ -1295,7 +1268,7 @@ export const gamificationService = {
     return Promise.all(studentIds.map(async id => {
       const level = await this.getStudentLevel(id);
       const badges = await this.getStudentBadges(id);
-      return { studentId: id, ...level, badgeCount: badges.length };
+      return { ...level, badgeCount: badges.length };
     }));
   },
 

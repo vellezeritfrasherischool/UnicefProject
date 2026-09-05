@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet, useNavigate } from "react-router";
 import {
   LayoutDashboard, Users, BookOpen, BarChart3, Settings,
   Bell, ChevronLeft, ChevronRight, LogOut,
-  Award, Menu,
+  Award, Menu, ShieldCheck,
 } from "lucide-react";
 import { useApp } from "./store";
 import AccessibilityPanel from "./AccessibilityPanel";
@@ -12,6 +12,7 @@ import { AppLogo } from "./AppLogo";
 import { APP_NAME } from "./brand";
 import { useT } from "./useT";
 import { Toaster } from "sonner";
+import { getSupabase, isSupabaseEnabled } from "./supabase";
 
 export default function TeacherLayout() {
   const { user, logout, setAccessibilityOpen } = useApp();
@@ -21,6 +22,7 @@ export default function TeacherLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
+  const [isSchoolAdmin, setIsSchoolAdmin] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const lastScrollY = useRef(0);
 
@@ -31,7 +33,14 @@ export default function TeacherLayout() {
     { to: "/teacher/analytics", icon: BarChart3, labelKey: "nav.analytics" },
     { to: "/teacher/rewards", icon: Award, labelKey: "nav.rewardsTeacher" },
     { to: "/teacher/settings", icon: Settings, labelKey: "nav.settings" },
+    ...(isSchoolAdmin ? [{ to: "/teacher/admin", icon: ShieldCheck, labelKey: "Administrimi" }] : []),
   ];
+
+  useEffect(() => {
+    if (!user || !isSupabaseEnabled()) return;
+    getSupabase().from("school_members").select("role,active").eq("user_id", user.id).eq("active", true).maybeSingle()
+      .then(({ data }) => setIsSchoolAdmin(data?.role === "school_admin"));
+  }, [user?.id]);
 
   const handleLogout = async () => {
     await logout();
@@ -89,7 +98,7 @@ export default function TeacherLayout() {
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               }`}>
               <item.icon size={20} className="shrink-0" strokeWidth={active ? 2.5 : 2} />
-              {!collapsed && <span>{t(item.labelKey)}</span>}
+              {!collapsed && <span>{item.labelKey.includes(".") ? t(item.labelKey) : item.labelKey}</span>}
             </Link>
           );
         })}

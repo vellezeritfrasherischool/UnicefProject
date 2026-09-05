@@ -8,9 +8,7 @@ import type {
   QuizQuestion,
   SessionMetrics,
 } from "./types";
-
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-5.6-sol";
+import { invokeAi } from "./aiGateway";
 
 const PEDAGOGY_RULES = `Rregulla të rëndësishme:
 - Përgjigju GJITHMONË në shqip.
@@ -18,50 +16,20 @@ const PEDAGOGY_RULES = `Rregulla të rëndësishme:
 - Fol vetëm për sjellje mësimore dhe rekomandime pedagogjike.
 - Nëse mungojnë të dhëna, përdor vetëm ato që ke dhe mos invento fakte.`;
 
-function getApiKey(): string {
-  const key = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
-  if (!key || key.includes("your-key-here")) {
-    throw new Error("Mungon çelësi i OpenAI. Shto VITE_OPENAI_API_KEY në skedarin .env dhe ristarto serverin.");
-  }
-  return key;
-}
-
 async function chat(
   system: string,
   user: string,
   options?: { json?: boolean; temperature?: number }
 ): Promise<string> {
-  // gpt-5.6 family only supports default temperature (1) — omit custom values
-  const supportsCustomTemp = !MODEL.startsWith("gpt-5.6");
-  const body: Record<string, unknown> = {
-    model: MODEL,
-    ...(supportsCustomTemp
-      ? { temperature: options?.temperature ?? 0.4 }
-      : {}),
-    ...(options?.json ? { response_format: { type: "json_object" } } : {}),
+  const data = await invokeAi<{ content?: string }>("chat", {
+    json: options?.json ?? false,
+    temperature: options?.temperature,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-  };
-
-  const res = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify(body),
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-    throw new Error(`OpenAI: ${msg}`);
-  }
-
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
+  const content = data?.content;
   if (!content || typeof content !== "string") {
     throw new Error("Përgjigja e AI ishte e zbrazët.");
   }

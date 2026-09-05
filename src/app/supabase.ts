@@ -39,23 +39,3 @@ export function getSupabase(): SupabaseClient {
   }
   return client;
 }
-
-/** Separate client so teacher can create student accounts without logging out. */
-export function createEphemeralAuthClient(): SupabaseClient {
-  if (!isSupabaseEnabled()) {
-    throw new Error("Supabase nuk është aktiv.");
-  }
-  const memory = new Map<string, string>();
-  return createClient(url, anonKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-      storage: {
-        getItem: (key) => memory.get(key) ?? null,
-        setItem: (key, value) => { memory.set(key, value); },
-        removeItem: (key) => { memory.delete(key); },
-      },
-    },
-  });
-}

@@ -14,7 +14,8 @@ import type {
   UserRole,
   XPTransaction,
 } from "./types";
-import { createEphemeralAuthClient, getSupabase } from "./supabase";
+import { getSupabase } from "./supabase";
+import { functionErrorMessage } from "./functionError";
 
 /** DB row shape (snake_case) for public.materials */
 type MaterialRow = {
@@ -43,6 +44,7 @@ type MaterialRow = {
   audio_enabled: boolean | null;
   enabled_sections: unknown;
   teacher_id?: string | null;
+  school_id?: string | null;
 };
 
 type AssignmentRow = {
@@ -97,6 +99,7 @@ export function rowToMaterial(row: MaterialRow): Material {
     audioEnabled: row.audio_enabled ?? undefined,
     enabledSections: (row.enabled_sections as Material["enabledSections"]) ?? undefined,
     teacherId: row.teacher_id ?? undefined,
+    schoolId: row.school_id ?? undefined,
   };
 }
 
@@ -127,6 +130,7 @@ export function materialToRow(mat: Material): MaterialRow {
     audio_enabled: mat.audioEnabled ?? null,
     enabled_sections: mat.enabledSections ?? null,
     teacher_id: mat.teacherId ?? null,
+    school_id: mat.schoolId ?? null,
   };
 }
 
@@ -199,6 +203,11 @@ export async function sbGetMaterialById(id: string): Promise<Material | undefine
 
 export async function sbUpsertMaterial(mat: Material): Promise<Material> {
   const row = materialToRow(mat);
+  if (!row.school_id && mat.teacherId) {
+    const { data: schoolId, error: schoolError } = await getSupabase().rpc("current_school_id");
+    if (schoolError || !schoolId) throw new Error("Anëtarësimi i shkollës mungon.");
+    row.school_id = schoolId as string;
+  }
   const { data, error } = await getSupabase()
     .from("materials")
     .upsert({ ...row, updated_at: new Date().toISOString() })
@@ -295,24 +304,15 @@ export async function sbUpsertProfile(user: User): Promise<void> {
   if (error) throwSb(error, "Nuk u ruajt profili.");
 }
 
-export async function sbRegisterTeacher(name: string, email: string, password: string): Promise<User> {
+export async function sbRegisterTeacher(name: string, email: string, password: string, invitation: string): Promise<User> {
   const sb = getSupabase();
-  const { data, error } = await sb.auth.signUp({
-    email: email.trim(),
-    password,
-    options: { data: { name: name.trim(), role: "teacher" } },
+  const cleanEmail = email.trim().toLowerCase();
+  const { data, error } = await sb.functions.invoke("register-invited-teacher", {
+    body: { name: name.trim(), email: cleanEmail, password, invitation: invitation.trim() },
   });
-  if (error) throwSb(error, "Regjistrimi i mësuesit dështoi.");
-  if (!data.user) throw new Error("Regjistrimi dështoi — kontrollo Auth settings (Confirm email).");
-
-  const user: User = {
-    id: data.user.id,
-    name: name.trim(),
-    email: email.trim().toLowerCase(),
-    role: "teacher",
-  };
-  await sbUpsertProfile(user);
-  return user;
+  if (error) throw new Error(await functionErrorMessage(error, "Ftesa është e pavlefshme ose ka skaduar."));
+  if (!data?.registered) throw new Error("Ftesa është e pavlefshme ose ka skaduar.");
+  return sbSignIn(cleanEmail, password);
 }
 
 export async function sbSignIn(email: string, password: string): Promise<User> {
@@ -390,6 +390,7 @@ type ClassRow = {
   teacher_id: string;
   name: string;
   join_code: string;
+  school_id?: string | null;
 };
 
 export function rowToClass(row: ClassRow, extras?: Partial<ClassGroup>): ClassGroup {
@@ -397,6 +398,7 @@ export function rowToClass(row: ClassRow, extras?: Partial<ClassGroup>): ClassGr
     id: row.id,
     name: row.name,
     teacherId: row.teacher_id,
+    schoolId: row.school_id ?? undefined,
     joinCode: row.join_code,
     studentCount: extras?.studentCount ?? 0,
     activeMaterials: extras?.activeMaterials ?? 0,
@@ -444,9 +446,11 @@ export async function sbCreateClass(teacherId: string, name: string): Promise<Cl
   if (!clean) throw new Error("Emri i klasës është i detyrueshëm.");
   const id = `cls-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const join_code = randomJoinCode();
+  const { data: schoolId, error: schoolError } = await getSupabase().rpc("current_school_id");
+  if (schoolError || !schoolId) throw new Error("Anëtarësimi i shkollës mungon.");
   const { data, error } = await getSupabase()
     .from("classes")
-    .insert({ id, teacher_id: teacherId, name: clean, join_code })
+    .insert({ id, teacher_id: teacherId, school_id: schoolId, name: clean, join_code })
     .select("*")
     .single();
   if (error) throwSb(error, "Nuk u krijua klasa.");
@@ -563,71 +567,27 @@ export async function sbCreateStudentAccount(input: {
   audioEnabled?: boolean;
   visualPreferred?: boolean;
 }): Promise<Student> {
-  const cls = await sbGetClassById(input.classId);
-  if (!cls) throw new Error("Klasa nuk u gjet.");
-  if (cls.teacher_id !== input.teacherId) throw new Error("Nuk ke të drejtë mbi këtë klasë.");
-
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
   if (!name) throw new Error("Emri i nxënësit është i detyrueshëm.");
   if (!email.includes("@")) throw new Error("Email i pavlefshëm.");
-  if (input.password.length < 6) throw new Error("Fjalëkalimi duhet të ketë së paku 6 karaktere.");
+  if (input.password.length < 8) throw new Error("Fjalëkalimi duhet të ketë së paku 8 karaktere.");
 
-  const ephemeral = createEphemeralAuthClient();
-  const { data, error } = await ephemeral.auth.signUp({
-    email,
-    password: input.password,
-    options: {
-      data: {
-        name,
-        role: "student",
-        class: cls.name.replace(/^Klasa\s+/i, ""),
-      },
+  const { data, error } = await getSupabase().functions.invoke("provision-student", {
+    body: {
+      classId: input.classId,
+      name,
+      email,
+      password: input.password,
+      age: input.age,
+      readingLevel: input.readingLevel,
+      audioEnabled: input.audioEnabled,
+      visualPreferred: input.visualPreferred,
     },
   });
-  if (error) throwSb(error, "Nuk u krijua llogaria e nxënësit.");
-  if (!data.user) {
-    throw new Error(
-      "Llogaria nuk u krijua. Çaktivizo 'Confirm email' te Supabase → Authentication → Providers → Email."
-    );
-  }
-
-  const userId = data.user.id;
-  const className = cls.name.replace(/^Klasa\s+/i, "").trim() || cls.name;
-
-  await sbUpsertProfile({
-    id: userId,
-    name,
-    email,
-    role: "student",
-    class: className,
-  });
-
-  const row = {
-    id: userId,
-    teacher_id: input.teacherId,
-    class_id: input.classId,
-    name,
-    email,
-    class_name: className,
-    age: input.age,
-    reading_level: input.readingLevel || "Mesatar",
-    score: 0,
-    completed_materials: 0,
-    status: "active" as const,
-    preferred_font: "lexend",
-    audio_enabled: input.audioEnabled ?? true,
-    visual_preferred: input.visualPreferred ?? false,
-    language: "sq",
-  };
-
-  const { data: inserted, error: insErr } = await getSupabase()
-    .from("students")
-    .insert(row)
-    .select("*")
-    .single();
-  if (insErr) throwSb(insErr, "Llogaria u krijua, por profili i nxënësit nuk u ruajt.");
-  return rowToStudent(inserted as StudentRow);
+  if (error) throw new Error(await functionErrorMessage(error, "Nuk u krijua llogaria e nxënësit."));
+  if (!data?.student) throw new Error("Serveri nuk ktheu profilin e nxënësit.");
+  return rowToStudent(data.student as StudentRow);
 }
 
 export async function sbRegisterStudentAccount(
@@ -659,6 +619,9 @@ export async function sbRegisterStudentAccount(
     email: cleanEmail,
     role: "student",
   };
+  if (!data.session) {
+    throw new Error("Llogaria u krijua. Kontrollo email-in, konfirmoje dhe pastaj hyr për t’u bashkuar me klasën.");
+  }
   await sbUpsertProfile(user);
   return user;
 }
@@ -668,49 +631,12 @@ export async function sbJoinClassWithCode(
   joinCode: string,
   extras?: { age?: number }
 ): Promise<{ student: Student; user: User }> {
-  const cls = await sbGetClassByJoinCode(joinCode);
-  if (!cls) throw new Error("Kodi i klasës nuk është i saktë.");
-
-  const existing = await sbGetStudentById(userId);
-  if (existing) {
-    throw new Error("Je tashmë i regjistruar në një klasë.");
-  }
-
-  const profile = await sbGetProfile(userId);
-  if (!profile) throw new Error("Profili nuk u gjet. Hyr përsëri.");
-  if (profile.role !== "student") {
-    throw new Error("Vetëm nxënësit mund të bashkohen në klasë me kod.");
-  }
-
-  const className = cls.name.replace(/^Klasa\s+/i, "").trim() || cls.name;
-  const row = {
-    id: userId,
-    teacher_id: cls.teacher_id,
-    class_id: cls.id,
-    name: profile.name,
-    email: profile.email,
-    class_name: className,
-    age: extras?.age ?? 12,
-    reading_level: "Mesatar",
-    score: 0,
-    completed_materials: 0,
-    status: "active" as const,
-    preferred_font: "lexend",
-    audio_enabled: true,
-    visual_preferred: false,
-    language: "sq",
-  };
-
-  const { data, error } = await getSupabase()
-    .from("students")
-    .insert(row)
-    .select("*")
-    .single();
-  if (error) throwSb(error, "Nuk u bashkove me klasën.");
-
-  const user: User = { ...profile, class: className };
-  await sbUpsertProfile(user);
-  return { student: rowToStudent(data as StudentRow), user };
+  const { data, error } = await getSupabase().functions.invoke("join-class", {
+    body: { joinCode: joinCode.trim(), age: extras?.age },
+  });
+  if (error) throw new Error(await functionErrorMessage(error, "Nuk u bashkove me klasën."));
+  if (!data?.student || !data?.user || data.user.id !== userId) throw new Error("Anëtarësimi nuk u përfundua.");
+  return { student: rowToStudent(data.student as StudentRow), user: data.user as User };
 }
 
 /** Optional: register + join in one step if joinCode provided. */

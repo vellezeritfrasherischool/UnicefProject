@@ -14,6 +14,7 @@ import type {
   Flashcard,
   MemoryBoosterPack,
 } from "./types";
+import { planNewAssignments } from "./assignmentPlanning";
 
 const KEYS = {
   materials: "mesolehte_materials_v2",
@@ -111,36 +112,8 @@ export function studentsInClass(className: string): Student[] {
  */
 export function publishMaterialToStudents(material: Material): Assignment[] {
   const classStudents = studentsInClass(material.class);
-  const targetIds = material.targetStudentIds?.filter(Boolean);
-  const students =
-    targetIds && targetIds.length > 0
-      ? classStudents.filter(s => targetIds.includes(s.id))
-      : classStudents;
-
   const existing = getAssignments();
-  const today = new Date().toISOString().split("T")[0];
-  const deadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-  const created: Assignment[] = [];
-
-  for (const student of students) {
-    const already = existing.some(
-      a => a.materialId === material.id && a.studentId === student.id
-    );
-    if (already) continue;
-
-    created.push({
-      id: `asgn-${material.id}-${student.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      materialId: material.id,
-      studentId: student.id,
-      deadline,
-      startDate: today,
-      allowRetry: true,
-      showAnswers: true,
-      enableAudio: true,
-      status: "pending",
-      attempts: 0,
-    });
-  }
+  const { students, assignments: created } = planNewAssignments(material, classStudents, existing);
 
   if (created.length > 0) {
     setAssignments([...created, ...existing]);

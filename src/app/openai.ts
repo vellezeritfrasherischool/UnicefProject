@@ -1,52 +1,20 @@
 import type { QuizQuestion, VocabWord } from "./types";
-
-const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-5.6-sol";
-
-function getApiKey(): string {
-  const key = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
-  if (!key || key.includes("your-key-here")) {
-    throw new Error("Mungon çelësi i OpenAI. Shto VITE_OPENAI_API_KEY në skedarin .env dhe ristarto serverin.");
-  }
-  return key;
-}
+import { invokeAi } from "./aiGateway";
 
 async function chat(
   system: string,
   user: string,
   options?: { json?: boolean; temperature?: number }
 ): Promise<string> {
-  // gpt-5.6 family only supports default temperature (1) — omit custom values
-  const supportsCustomTemp = !MODEL.startsWith("gpt-5.6");
-  const body: Record<string, unknown> = {
-    model: MODEL,
-    ...(supportsCustomTemp
-      ? { temperature: options?.temperature ?? 0.4 }
-      : {}),
-    ...(options?.json ? { response_format: { type: "json_object" } } : {}),
+  const data = await invokeAi<{ content?: string }>("chat", {
+    json: options?.json ?? false,
+    temperature: options?.temperature,
     messages: [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-  };
-
-  const res = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify(body),
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-    throw new Error(`OpenAI: ${msg}`);
-  }
-
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
+  const content = data?.content;
   if (!content || typeof content !== "string") {
     throw new Error("Përgjigja e AI ishte e zbrazët.");
   }
@@ -249,42 +217,9 @@ export async function synthesizeEnglishSpeech(text: string): Promise<Blob> {
   const input = text.trim().slice(0, MAX_TTS_CHARS);
   if (!input) throw new Error("No text for audio.");
 
-  const key = getApiKey();
-  const tryRequest = async (body: Record<string, unknown>) => {
-    const res = await fetch(TTS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-      throw new Error(msg);
-    }
-    return res.blob();
-  };
-
-  try {
-    return await tryRequest({
-      model: "gpt-4o-mini-tts",
-      voice: "nova",
-      input,
-      instructions:
-        "Speak clear, natural American English at a calm educational pace suitable for children ages 8-12.",
-    });
-  } catch {
-    return tryRequest({
-      model: "tts-1",
-      voice: "nova",
-      input,
-    });
-  }
+  return invokeAi<Blob>("speech", { input, language: "en" });
 }
 
-const TTS_URL = "https://api.openai.com/v1/audio/speech";
 const MAX_TTS_CHARS = 3500;
 
 /** Split long Albanian text into TTS-sized chunks (prefer sentence boundaries). */
@@ -325,43 +260,8 @@ export async function synthesizeAlbanianSpeech(text: string): Promise<Blob> {
   const input = text.trim().slice(0, MAX_TTS_CHARS);
   if (!input) throw new Error("Nuk ka tekst për audio.");
 
-  const key = getApiKey();
-  const tryRequest = async (body: Record<string, unknown>) => {
-    const res = await fetch(TTS_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-      throw new Error(msg);
-    }
-    return res.blob();
-  };
-
-  try {
-    return await tryRequest({
-      model: "gpt-4o-mini-tts",
-      voice: "nova",
-      input,
-      instructions:
-        "Speak in clear, natural Albanian (Shqip). Use correct Albanian pronunciation. Do not use an English accent. Read at a calm, educational pace suitable for children.",
-    });
-  } catch {
-    // Fallback for accounts without gpt-4o-mini-tts
-    return tryRequest({
-      model: "tts-1",
-      voice: "nova",
-      input,
-    });
-  }
+  return invokeAi<Blob>("speech", { input, language: "sq" });
 }
-
-const IMAGES_URL = "https://api.openai.com/v1/images/generations";
 
 /** Shrink image data URLs so materials fit in localStorage (~5MB). */
 async function compressIllustrationDataUrl(
@@ -403,60 +303,9 @@ async function compressIllustrationDataUrl(
  * Uses gpt-image-1 (current Images API). Falls back to dall-e-3 URL mode.
  */
 export async function generateEducationalIllustration(prompt: string): Promise<string> {
-  const key = getApiKey();
   const safePrompt = `Simple educational illustration for children ages 8-12, clear and friendly, soft colors, no text, no letters, no words, no watermark. Scene: ${prompt.slice(0, 400)}`;
-
-  const parseImage = (data: {
-    data?: Array<{ b64_json?: string; url?: string }>;
-  }): string => {
-    const b64 = data?.data?.[0]?.b64_json;
-    const url = data?.data?.[0]?.url;
-    if (b64) return `data:image/png;base64,${b64}`;
-    if (url) return url;
-    throw new Error("Nuk u kthye figurë.");
-  };
-
-  const tryRequest = async (body: Record<string, unknown>) => {
-    const res = await fetch(IMAGES_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-      throw new Error(msg);
-    }
-    return parseImage(await res.json());
-  };
-
-  let raw: string;
-  try {
-    raw = await tryRequest({
-      model: "gpt-image-1",
-      prompt: safePrompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "low",
-    });
-  } catch (firstErr) {
-    try {
-      raw = await tryRequest({
-        model: "dall-e-3",
-        prompt: safePrompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "standard",
-      });
-    } catch {
-      const msg = firstErr instanceof Error ? firstErr.message : "Gjenerimi i figurës dështoi.";
-      throw new Error(msg);
-    }
-  }
-
+  const { image: raw } = await invokeAi<{ image: string }>("image", { prompt: safePrompt });
+  if (!raw) throw new Error("Nuk u kthye figurë.");
   return compressIllustrationDataUrl(raw);
 }
 
@@ -485,30 +334,11 @@ async function chatMultiTurn(
   system: string,
   messages: Array<{ role: "user" | "assistant" | "system"; content: string }>
 ): Promise<string> {
-  const supportsCustomTemp = !MODEL.startsWith("gpt-5.6");
-  const body: Record<string, unknown> = {
-    model: MODEL,
-    ...(supportsCustomTemp ? { temperature: 0.5 } : {}),
+  const data = await invokeAi<{ content?: string }>("chat", {
+    temperature: 0.5,
     messages: [{ role: "system", content: system }, ...messages],
-  };
-
-  const res = await fetch(OPENAI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify(body),
   });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const msg = (err as { error?: { message?: string } })?.error?.message || res.statusText;
-    throw new Error(`OpenAI: ${msg}`);
-  }
-
-  const data = await res.json();
-  const content = data?.choices?.[0]?.message?.content;
+  const content = data?.content;
   if (!content || typeof content !== "string") {
     throw new Error("Përgjigja e AI ishte e zbrazët.");
   }
@@ -604,4 +434,3 @@ ${previousBlock}`;
     { role: "user", content: truncate(opts.userMessage, 1500) },
   ]);
 }
-

@@ -13,6 +13,11 @@ MësoLehtë AI is an educational platform for schools: the teacher uploads a dif
 
 **GitHub:** https://github.com/LedionRrahimi1/UnicefProject
 
+Production documentation: [`docs/architecture.md`](docs/architecture.md),
+[`docs/staging-deployment.md`](docs/staging-deployment.md),
+[`docs/manual-qa-checklist.md`](docs/manual-qa-checklist.md), and
+[`docs/school-handoff.md`](docs/school-handoff.md).
+
 ---
 
 ## The problem we solve
@@ -237,7 +242,8 @@ Also: **Authentication → Providers → Email → disable “Confirm email”**
 
 ## Run locally
 
-You need Node.js 18+ and an OpenAI key.
+You need Node.js 18+ and a configured Supabase project. AI features additionally
+require the authenticated Edge Function described in `supabase/functions/README.md`.
 
 ```bash
 git clone https://github.com/LedionRrahimi1/UnicefProject.git
@@ -249,7 +255,6 @@ cp .env.example .env
 In `.env`:
 
 ```
-VITE_OPENAI_API_KEY=sk-proj-...
 VITE_USE_SUPABASE=true
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -263,7 +268,8 @@ npm run dev
 
 Open http://localhost:5173  
 
-**Note:** `.env` is not pushed to GitHub. Do not commit your API key.
+**Note:** `.env` is not pushed to GitHub. The OpenAI key is a server-only Supabase
+secret named `OPENAI_API_KEY`; never put it in a `VITE_` variable.
 
 ---
 
@@ -553,7 +559,8 @@ Gjithashtu: **Authentication → Providers → Email → çaktivizo “Confirm e
 
 ## Si ta nisësh lokalisht
 
-Duhet Node.js 18+ dhe një çelës OpenAI.
+Duhet Node.js 18+ dhe një projekt Supabase i konfiguruar. Veçoritë AI kërkojnë
+gjithashtu Edge Function të përshkruar te `supabase/functions/README.md`.
 
 ```bash
 git clone https://github.com/LedionRrahimi1/UnicefProject.git
@@ -565,7 +572,6 @@ cp .env.example .env
 Në `.env`:
 
 ```
-VITE_OPENAI_API_KEY=sk-proj-...
 VITE_USE_SUPABASE=true
 VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
@@ -579,7 +585,8 @@ npm run dev
 
 Hape http://localhost:5173  
 
-**Kujdes:** `.env` nuk shkon në GitHub. Mos e commit-o çelësin.
+**Kujdes:** `.env` nuk shkon në GitHub. Çelësi OpenAI ruhet vetëm si secret
+`OPENAI_API_KEY` në Supabase; mos e vendos kurrë në një variabël `VITE_`.
 
 ---
 

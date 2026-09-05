@@ -53,6 +53,7 @@ export interface Material {
   completionRate: number;
   estimatedMinutes: number;
   teacherId?: string;
+  schoolId?: string;
   /**
    * If set, publish assigns only these students (personalized variants).
    * If empty/undefined, publish assigns the whole class.
@@ -99,6 +100,7 @@ export interface Student {
   email?: string;
   classId?: string;
   teacherId?: string;
+  schoolId?: string;
 }
 
 export interface ClassGroup {
@@ -109,6 +111,7 @@ export interface ClassGroup {
   averageScore: number;
   joinCode?: string;
   teacherId?: string;
+  schoolId?: string;
 }
 
 export interface Assignment {

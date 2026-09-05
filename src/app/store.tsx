@@ -39,6 +39,9 @@ const AppContext = createContext<AppState>({
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
+    // Supabase Auth is the only identity source in cloud mode. Never render a
+    // cached demo/local user while the real session is being restored.
+    if (isSupabaseEnabled()) return null;
     try { return JSON.parse(localStorage.getItem("mesolehte_user") ?? "null"); } catch { return null; }
   });
   const [authReady, setAuthReady] = useState(!isSupabaseEnabled());
@@ -62,8 +65,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const applyUser = useCallback((u: User | null) => {
     setUser(u);
-    if (u) localStorage.setItem("mesolehte_user", JSON.stringify(u));
-    else localStorage.removeItem("mesolehte_user");
+    if (isSupabaseEnabled()) {
+      localStorage.removeItem("mesolehte_user");
+    } else if (u) {
+      localStorage.setItem("mesolehte_user", JSON.stringify(u));
+    } else {
+      localStorage.removeItem("mesolehte_user");
+    }
   }, []);
 
   const login = useCallback((u: User) => {

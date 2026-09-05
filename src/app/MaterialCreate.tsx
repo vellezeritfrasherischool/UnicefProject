@@ -11,6 +11,7 @@ import { buildAdaptationCohorts } from "./adaptationCohorts";
 import type { ClassGroup, Student } from "./types";
 import { useT } from "./useT";
 import { useApp } from "./store";
+import { extractPdfText, MAX_PDF_BYTES, PdfExtractionError } from "./pdfExtraction";
 
 class AiAbortedError extends Error {
   constructor() {
@@ -45,6 +46,8 @@ export default function MaterialCreate() {
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
+  const [extractingFile, setExtractingFile] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState("");
 
   // Step 2
   const [audience, setAudience] = useState<"class" | "student">("class");
@@ -123,14 +126,43 @@ export default function MaterialCreate() {
   }, [selectedClass]);
 
   const handleFile = async (f: File) => {
-    setFile(f);
-    if (f.type.startsWith("text/") || /\.(txt|md|csv)$/i.test(f.name)) {
-      try {
+    if (f.size > MAX_PDF_BYTES) {
+      toast.error("Skedari është më i madh se kufiri 10 MB.");
+      return;
+    }
+    setExtractingFile(true);
+    setExtractionProgress("Duke lexuar skedarin…");
+    try {
+      if (f.type === "application/pdf" || /\.pdf$/i.test(f.name)) {
+        const content = await extractPdfText(f, (page, total) => {
+          setExtractionProgress(`Duke nxjerrë tekstin: faqja ${page}/${total}`);
+        });
+        setText(content);
+      } else if (f.type.startsWith("text/") || /\.(txt|md)$/i.test(f.name)) {
         const content = await f.text();
-        if (content.trim().length > 0) setText(content);
-      } catch {
-        // keep file reference; user can still paste text
+        if (!content.trim()) throw new Error("empty");
+        setText(content);
+      } else {
+        toast.error("Për momentin mbështeten vetëm PDF, TXT dhe Markdown.");
+        return;
       }
+      setFile(f);
+      toast.success("Teksti u nxor. Kontrolloje dhe redaktoje para adaptimit.");
+    } catch (error) {
+      setFile(null);
+      setText("");
+      if (error instanceof PdfExtractionError && error.code === "password") {
+        toast.error("PDF-ja është e mbrojtur me fjalëkalim.");
+      } else if (error instanceof PdfExtractionError && error.code === "empty") {
+        toast.error("PDF-ja nuk ka tekst të lexueshëm dhe mund të jetë e skanuar. OCR nuk mbështetet ende.");
+      } else if (error instanceof PdfExtractionError && error.code === "type") {
+        toast.error("Skedari nuk është PDF i vlefshëm.");
+      } else {
+        toast.error("Teksti nuk u nxor nga skedari. Kontrollo skedarin dhe provo sërish.");
+      }
+    } finally {
+      setExtractingFile(false);
+      setExtractionProgress("");
     }
   };
   const handleDrop = (e: React.DragEvent) => {
@@ -153,7 +185,7 @@ export default function MaterialCreate() {
   }, [audience, selectedStudents, classStudents]);
 
   const canProceed = () => {
-    if (step === 0) return text.trim().length > 0 || file !== null;
+    if (step === 0) return !extractingFile && text.trim().length > 0;
     if (step === 1) {
       if (audience === "class") return true;
       return selectedStudents.length > 0;
@@ -522,7 +554,9 @@ export default function MaterialCreate() {
                 onKeyDown={e => e.key === "Enter" && fileRef.current?.click()}
                 aria-label="Zona e ngarkimit të skedarit">
                 <Upload size={32} className="text-muted-foreground mx-auto mb-3" />
-                {file ? (
+                {extractingFile ? (
+                  <div className="text-sm text-primary font-medium">{extractionProgress}</div>
+                ) : file ? (
                   <div className="flex items-center gap-2 justify-center text-sm">
                     <File size={16} className="text-primary" />
                     <span className="font-medium">{file.name}</span>
@@ -533,11 +567,23 @@ export default function MaterialCreate() {
                 ) : (
                   <>
                     <p className="font-medium text-sm mb-1">{t("mc.drag")}</p>
-                    <p className="text-xs text-muted-foreground">{t("mc.fileTypes")}</p>
+                    <p className="text-xs text-muted-foreground">PDF, TXT, Markdown · Maksimumi 10 MB</p>
                   </>
                 )}
-                <input ref={fileRef} type="file" accept=".pdf,.doc,.docx,.jpg,.png" className="hidden"
+                <input ref={fileRef} type="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" className="hidden"
                   onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} aria-label="Zgjidh skedar" />
+              </div>
+            )}
+            {inputMode === "file" && text && !extractingFile && (
+              <div>
+                <label className="text-sm font-medium mb-2 block">Teksti i nxjerrë — kontrollo dhe redakto</label>
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  rows={10}
+                  className="w-full bg-input-background border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/50 text-foreground resize-y"
+                  aria-label="Teksti i nxjerrë nga skedari"
+                />
               </div>
             )}
           </div>

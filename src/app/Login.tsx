@@ -22,6 +22,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [joinCode, setJoinCode] = useState("");
+  const [invitation, setInvitation] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +50,7 @@ export default function Login() {
     setLoading(true);
     setError("");
     try {
-      const user = await authService.registerTeacher(name, email, password);
+      const user = await authService.registerTeacher(name, email, password, invitation);
       login(user);
       finish(user);
     } catch (err: unknown) {
@@ -223,6 +224,15 @@ export default function Login() {
                 <input id="join" value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())}
                   placeholder="ABC123" className="ui-input tracking-widest font-bold uppercase" maxLength={8} />
                 <p className="text-xs text-muted-foreground mt-1.5">{t("login.joinCodeOptionalHint")}</p>
+              </div>
+            )}
+
+            {mode === "register-teacher" && (
+              <div>
+                <label htmlFor="invitation" className="block mb-2">Kodi i ftesës</label>
+                <input id="invitation" value={invitation} onChange={e => setInvitation(e.target.value.trim())}
+                  placeholder="Kodi i dhënë nga administratori" required className="ui-input" autoComplete="off" />
+                <p className="text-xs text-muted-foreground mt-1.5">Regjistrimi i mësuesve lejohet vetëm me ftesë nga shkolla.</p>
               </div>
             )}
 
