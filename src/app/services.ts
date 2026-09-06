@@ -55,6 +55,8 @@ import {
   sbGetSessionUser,
   sbGetClassesForTeacher,
   sbCreateClass,
+  sbUpdateClass,
+  sbDeleteClass,
   sbGetStudentsByClassId,
   sbGetStudentsByClassName,
   sbGetStudentById,
@@ -63,6 +65,8 @@ import {
   sbRegisterStudentSelf,
   sbJoinClassWithCode,
   sbUpdateStudent,
+  sbManageStudent,
+  sbDeleteStudent,
   sbGetXpForStudent,
   sbInsertXp,
   sbGetBadgesForStudent,
@@ -416,6 +420,37 @@ export const studentService = {
     };
     setClasses([...getClasses(), cls]);
     return cls;
+  },
+  async updateClass(id: string, name: string): Promise<void> {
+    const clean = name.trim();
+    if (!clean) throw new Error("Emri i klasës është i detyrueshëm.");
+    if (isSupabaseEnabled()) return sbUpdateClass(id, clean);
+    const old = getClasses().find(item => item.id === id);
+    if (!old) throw new Error("Klasa nuk u gjet.");
+    setClasses(getClasses().map(item => item.id === id ? { ...item, name: clean } : item));
+    setStudents(getStudents().map(item => item.classId === id || normalizeClassName(item.class) === normalizeClassName(old.name) ? { ...item, class: clean } : item));
+  },
+  async deleteClass(id: string): Promise<void> {
+    if (isSupabaseEnabled()) return sbDeleteClass(id);
+    const cls = getClasses().find(item => item.id === id);
+    if (!cls) return;
+    if (getStudents().some(item => item.classId === id || normalizeClassName(item.class) === normalizeClassName(cls.name)) || getMaterials().some(item => normalizeClassName(item.class) === normalizeClassName(cls.name))) {
+      throw new Error("Hiq nxënësit dhe materialet e klasës para fshirjes.");
+    }
+    setClasses(getClasses().filter(item => item.id !== id));
+  },
+  async manageUpdate(input: { studentId: string; name: string; age: number; readingLevel: string; targetClassId: string; audioEnabled: boolean; visualPreferred: boolean }): Promise<Student> {
+    if (isSupabaseEnabled()) return sbManageStudent(input);
+    const cls = getClasses().find(item => item.id === input.targetClassId);
+    if (!cls) throw new Error("Klasa nuk u gjet.");
+    const updated = await this.update(input.studentId, { name: input.name, age: input.age, readingLevel: input.readingLevel, class: cls.name, classId: cls.id, audioEnabled: input.audioEnabled, visualPreferred: input.visualPreferred });
+    if (!updated) throw new Error("Nxënësi nuk u gjet.");
+    return updated;
+  },
+  async deleteStudent(id: string): Promise<void> {
+    if (isSupabaseEnabled()) return sbDeleteStudent(id);
+    setStudents(getStudents().filter(item => item.id !== id));
+    setAssignments(getAssignments().filter(item => item.studentId !== id));
   },
   async update(id: string, patch: Partial<Student>): Promise<Student | undefined> {
     await delay(100);

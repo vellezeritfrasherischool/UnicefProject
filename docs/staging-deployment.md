@@ -19,6 +19,7 @@ where p.id = sm.user_id
 
 ```bash
 supabase functions deploy school-admin
+supabase functions deploy manage-roster
 supabase functions deploy ai-gateway
 ```
 

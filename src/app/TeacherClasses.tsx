@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { Users, Search, Filter, Plus, ChevronRight, AlertTriangle, Star, X, Copy } from "lucide-react";
+import { Users, Search, Filter, Plus, ChevronRight, AlertTriangle, Star, X, Copy, Pencil, Trash2 } from "lucide-react";
 import { studentService } from "./services";
 import type { Student, ClassGroup } from "./types";
 import { toast } from "sonner";
@@ -37,6 +37,8 @@ export default function TeacherClasses() {
   const [classOpen, setClassOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newClassName, setNewClassName] = useState("");
+  const [editingClass, setEditingClass] = useState<ClassGroup | null>(null);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -77,6 +79,7 @@ export default function TeacherClasses() {
   }, [selectedClass]);
 
   const openAddModal = () => {
+    setEditingStudent(null);
     setForm({
       name: "",
       email: "",
@@ -90,17 +93,53 @@ export default function TeacherClasses() {
     setAddOpen(true);
   };
 
+  const openEditStudent = (student: Student) => {
+    setEditingStudent(student);
+    setForm({
+      name: student.name,
+      email: student.email ?? "",
+      password: "",
+      age: String(student.age),
+      classId: student.classId || selectedClass?.id || "",
+      readingLevel: student.readingLevel,
+      audioEnabled: student.audioEnabled,
+      visualPreferred: student.visualPreferred,
+    });
+    setAddOpen(true);
+  };
+
+  const openCreateClass = () => {
+    setEditingClass(null);
+    setNewClassName("");
+    setClassOpen(true);
+  };
+
+  const openEditClass = () => {
+    if (!selectedClass) return;
+    setEditingClass(selectedClass);
+    setNewClassName(selectedClass.name);
+    setClassOpen(true);
+  };
+
   const handleCreateClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     setSaving(true);
     try {
-      const cls = await studentService.createClass(user.id, newClassName);
-      toast.success(t("tc.classCreated", { name: cls.name, code: cls.joinCode || "" }));
+      if (editingClass) {
+        await studentService.updateClass(editingClass.id, newClassName);
+        toast.success("Klasa u përditësua.");
+        const list = await refreshClasses();
+        setSelectedClass(list.find(c => c.id === editingClass.id) ?? list[0] ?? null);
+      } else {
+        const cls = await studentService.createClass(user.id, newClassName);
+        toast.success(t("tc.classCreated", { name: cls.name, code: cls.joinCode || "" }));
+        const list = await refreshClasses();
+        setSelectedClass(list.find(c => c.id === cls.id) || cls);
+      }
       setClassOpen(false);
       setNewClassName("");
-      const list = await refreshClasses();
-      setSelectedClass(list.find(c => c.id === cls.id) || cls);
+      setEditingClass(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("tc.classFailed"));
     } finally {
@@ -118,20 +157,17 @@ export default function TeacherClasses() {
     if (!user) return;
     setSaving(true);
     try {
-      const student = await studentService.create({
-        name: form.name,
-        class: cls.name,
-        classId: cls.id,
-        teacherId: user.id,
-        age: Number(form.age),
-        readingLevel: form.readingLevel,
-        audioEnabled: form.audioEnabled,
-        visualPreferred: form.visualPreferred,
-        email: form.email || undefined,
-        password: form.password || undefined,
-      });
+      const student = editingStudent
+        ? await studentService.manageUpdate({ studentId: editingStudent.id, name: form.name, age: Number(form.age), readingLevel: form.readingLevel, targetClassId: cls.id, audioEnabled: form.audioEnabled, visualPreferred: form.visualPreferred })
+        : await studentService.create({
+            name: form.name, class: cls.name, classId: cls.id, teacherId: user.id,
+            age: Number(form.age), readingLevel: form.readingLevel,
+            audioEnabled: form.audioEnabled, visualPreferred: form.visualPreferred,
+            email: form.email || undefined, password: form.password || undefined,
+          });
       toast.success(`${student.name} · ${cls.name}`);
       setAddOpen(false);
+      setEditingStudent(null);
       const list = await refreshClasses();
       const updated = list.find(c => c.id === cls.id) || cls;
       setSelectedClass(updated);
@@ -143,6 +179,31 @@ export default function TeacherClasses() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteClass = async () => {
+    if (!selectedClass || !window.confirm(`Ta fshijmë klasën “${selectedClass.name}”? Klasa duhet të jetë pa nxënës dhe materiale.`)) return;
+    setSaving(true);
+    try {
+      await studentService.deleteClass(selectedClass.id);
+      toast.success("Klasa u fshi.");
+      const list = await refreshClasses();
+      setSelectedClass(list[0] ?? null);
+      setStudents([]);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Klasa nuk u fshi."); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteStudent = async (student: Student) => {
+    if (!window.confirm(`Ta fshijmë nxënësin “${student.name}”? Llogaria dhe të dhënat e tij do të fshihen përgjithmonë.`)) return;
+    setSaving(true);
+    try {
+      await studentService.deleteStudent(student.id);
+      toast.success("Nxënësi u fshi.");
+      if (selectedClass) setStudents(await studentService.getByClass(selectedClass.id));
+      await refreshClasses();
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Nxënësi nuk u fshi."); }
+    finally { setSaving(false); }
   };
 
   const copyCode = async (code?: string) => {
@@ -179,7 +240,7 @@ export default function TeacherClasses() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => setClassOpen(true)}
+            onClick={openCreateClass}
             className="flex items-center gap-2 border border-border bg-card font-medium px-4 py-2.5 rounded-xl hover:bg-muted transition-colors min-h-11"
           >
             <Plus size={16} /> {t("tc.addClass")}
@@ -199,7 +260,7 @@ export default function TeacherClasses() {
         <div className="bg-card border border-dashed border-border rounded-2xl p-10 text-center">
           <p className="font-semibold mb-2">{t("tc.noClasses")}</p>
           <p className="text-sm text-muted-foreground mb-4">{t("tc.noClassesHint")}</p>
-          <button type="button" onClick={() => setClassOpen(true)} className="ui-btn-primary inline-flex">
+          <button type="button" onClick={openCreateClass} className="ui-btn-primary inline-flex">
             <Plus size={16} /> {t("tc.addClass")}
           </button>
         </div>
@@ -247,6 +308,8 @@ export default function TeacherClasses() {
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
           <div className="p-5 border-b border-border flex items-center gap-3 flex-wrap">
             <h2 className="font-semibold">{selectedClass.name}</h2>
+            <button type="button" onClick={openEditClass} className="p-2 rounded-xl text-primary hover:bg-primary/10" aria-label="Ndrysho klasën" title="Ndrysho klasën"><Pencil size={16} /></button>
+            <button type="button" onClick={() => void handleDeleteClass()} disabled={saving} className="p-2 rounded-xl text-destructive hover:bg-destructive/10" aria-label="Fshi klasën" title="Fshi klasën"><Trash2 size={16} /></button>
             <div className="flex-1" />
             <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-1.5 w-full sm:w-auto">
               <Search size={15} className="text-muted-foreground" />
@@ -319,10 +382,11 @@ export default function TeacherClasses() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/teacher/students/${s.id}`}
-                          className="text-xs text-primary hover:underline font-medium">
-                          {t("tc.viewProfile")}
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          <Link to={`/teacher/students/${s.id}`} className="text-xs text-primary hover:underline font-medium mr-1">{t("tc.viewProfile")}</Link>
+                          <button type="button" onClick={() => openEditStudent(s)} className="p-2 rounded-lg text-primary hover:bg-primary/10" aria-label={`Ndrysho ${s.name}`}><Pencil size={15} /></button>
+                          <button type="button" onClick={() => void handleDeleteStudent(s)} disabled={saving} className="p-2 rounded-lg text-destructive hover:bg-destructive/10" aria-label={`Fshi ${s.name}`}><Trash2 size={15} /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -341,7 +405,7 @@ export default function TeacherClasses() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => !saving && setClassOpen(false)} />
           <div className="relative w-full max-w-md ui-card p-6 shadow-[var(--shadow-lg)]" role="dialog" aria-modal="true">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-extrabold tracking-tight">{t("tc.addClass")}</h2>
+              <h2 className="text-lg font-extrabold tracking-tight">{editingClass ? "Ndrysho klasën" : t("tc.addClass")}</h2>
               <button type="button" onClick={() => !saving && setClassOpen(false)} className="p-2 rounded-xl hover:bg-muted min-h-10 min-w-10 flex items-center justify-center" aria-label={t("common.close")}>
                 <X size={18} />
               </button>
@@ -363,7 +427,7 @@ export default function TeacherClasses() {
                   {t("common.cancel")}
                 </button>
                 <button type="submit" disabled={saving} className="ui-btn-primary flex-1">
-                  {saving ? t("tc.saving") : t("tc.createClassBtn")}
+                  {saving ? t("tc.saving") : editingClass ? "Ruaj ndryshimet" : t("tc.createClassBtn")}
                 </button>
               </div>
             </form>
@@ -376,7 +440,7 @@ export default function TeacherClasses() {
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px]" onClick={() => !saving && setAddOpen(false)} />
           <div className="relative w-full max-w-md ui-card p-6 shadow-[var(--shadow-lg)] max-h-[90vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-student-title">
             <div className="flex items-center justify-between mb-5">
-              <h2 id="add-student-title" className="text-lg font-extrabold tracking-tight">{t("tc.addStudent")}</h2>
+              <h2 id="add-student-title" className="text-lg font-extrabold tracking-tight">{editingStudent ? "Ndrysho nxënësin" : t("tc.addStudent")}</h2>
               <button type="button" onClick={() => !saving && setAddOpen(false)} className="p-2 rounded-xl hover:bg-muted min-h-10 min-w-10 flex items-center justify-center" aria-label={t("common.close")}>
                 <X size={18} />
               </button>
@@ -395,7 +459,7 @@ export default function TeacherClasses() {
                 />
               </div>
 
-              {cloud && (
+              {cloud && !editingStudent && (
                 <>
                   <div>
                     <label className="mb-2 block" htmlFor="stu-email">{t("login.email")}</label>
@@ -498,7 +562,7 @@ export default function TeacherClasses() {
                   {t("common.cancel")}
                 </button>
                 <button type="submit" disabled={saving} className="ui-btn-primary flex-1">
-                  {saving ? t("tc.saving") : t("tc.addStudentBtn")}
+                  {saving ? t("tc.saving") : editingStudent ? "Ruaj ndryshimet" : t("tc.addStudentBtn")}
                 </button>
               </div>
             </form>

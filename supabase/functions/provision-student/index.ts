@@ -91,7 +91,9 @@ Deno.serve(async (request) => {
     language: "sq",
   };
 
-  const { error: profileError } = await admin.from("profiles").insert({
+  // Migration 003's Auth trigger may already have created this minimal profile.
+  // Upsert completes it without failing on the existing primary key.
+  const { error: profileError } = await admin.from("profiles").upsert({
     id: studentId, email, name, role: "student", class: className,
   });
   const { error: studentError } = profileError
@@ -99,7 +101,11 @@ Deno.serve(async (request) => {
     : await admin.from("students").insert(student);
   if (profileError || studentError) {
     await admin.auth.admin.deleteUser(studentId);
-    console.error("Student data provisioning failed", { teacherId: user.id });
+    console.error("Student data provisioning failed", {
+      teacherId: user.id,
+      profileCode: profileError?.code,
+      studentCode: studentError?.code,
+    });
     return json(500, { error: "Student account setup could not be completed" }, origin);
   }
 

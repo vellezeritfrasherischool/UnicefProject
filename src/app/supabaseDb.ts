@@ -482,6 +482,32 @@ export async function sbCreateClass(teacherId: string, name: string): Promise<Cl
   return rowToClass(data as ClassRow);
 }
 
+async function rosterAction<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await getSupabase().functions.invoke("manage-roster", { body });
+  if (error) throw new Error(await functionErrorMessage(error, "Veprimi nuk u përfundua."));
+  return data as T;
+}
+
+export async function sbUpdateClass(id: string, name: string): Promise<void> {
+  await rosterAction({ action: "update-class", classId: id, name });
+}
+
+export async function sbDeleteClass(id: string): Promise<void> {
+  await rosterAction({ action: "delete-class", classId: id });
+}
+
+export async function sbManageStudent(input: {
+  studentId: string; name: string; age: number; readingLevel: string; targetClassId: string;
+  audioEnabled: boolean; visualPreferred: boolean;
+}): Promise<Student> {
+  const result = await rosterAction<{ student: StudentRow }>({ action: "update-student", ...input });
+  return rowToStudent(result.student);
+}
+
+export async function sbDeleteStudent(id: string): Promise<void> {
+  await rosterAction({ action: "delete-student", studentId: id });
+}
+
 export async function sbGetClassByJoinCode(code: string): Promise<ClassRow | null> {
   const { data, error } = await getSupabase()
     .from("classes")
