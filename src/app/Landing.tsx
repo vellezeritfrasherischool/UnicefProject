@@ -34,9 +34,8 @@ export default function Landing() {
             <span className="font-bold text-foreground">{APP_NAME}</span>
           </div>
           <div className="ml-auto flex items-center gap-3">
-            <Link to="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors px-3 py-2">{t("landing.signIn")}</Link>
             <Link to="/login" className="bg-primary text-primary-foreground text-sm font-medium px-4 py-2 rounded-xl hover:bg-primary/90 transition-colors">
-              {t("landing.startFree")}
+              {t("landing.signIn")}
             </Link>
           </div>
         </div>
@@ -57,7 +56,7 @@ export default function Landing() {
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link to="/login" className="ui-btn-primary px-7 py-3.5 text-base">
-              {t("landing.startTeacher")} <ArrowRight size={18} />
+              {t("landing.startNow")} <ArrowRight size={18} />
             </Link>
             <Link to="/demo" className="ui-btn-secondary px-7 py-3.5 text-base">
               {t("landing.watchDemo")}

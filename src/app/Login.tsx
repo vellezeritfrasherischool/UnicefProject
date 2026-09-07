@@ -126,49 +126,76 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center p-6 sm:p-10 bg-background">
-        <div className="w-full max-w-sm">
+      <div className="flex flex-col items-center justify-center p-5 sm:p-10 bg-muted/30">
+        <div className="w-full max-w-md">
           <div className="lg:hidden flex items-center gap-2.5 mb-8">
             <AppLogo size={36} />
             <span className="font-extrabold">{APP_NAME}</span>
           </div>
 
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground mb-2 tracking-tight">
-            {mode === "login" ? t("login.title") : t("login.registerTitle")}
-          </h2>
-          <p className="text-muted-foreground text-sm mb-6">
-            {mode === "login"
-              ? (cloud ? t("login.subtitleCloud") : t("login.subtitle"))
-              : mode === "register-teacher"
-                ? t("login.registerTeacherHint")
-                : t("login.registerStudentHint")}
-          </p>
-
-          {cloud && (
-            <div className="flex gap-1 p-1 mb-6 rounded-2xl bg-muted">
-              {(
-                [
-                  ["login", t("login.signIn")],
-                  ["register-teacher", t("login.tabTeacher")],
-                  ["register-student", t("login.tabStudent")],
-                ] as const
-              ).map(([m, label]) => (
+          <div className="bg-card border border-border rounded-3xl shadow-sm p-6 sm:p-8">
+            {cloud && (
+              <div className="grid grid-cols-2 gap-1 p-1 mb-7 rounded-2xl bg-muted" aria-label="Zgjidh hyrjen ose regjistrimin">
                 <button
-                  key={m}
                   type="button"
-                  onClick={() => { setMode(m); setError(""); }}
-                  className={`flex-1 text-xs font-bold py-2.5 rounded-xl transition-colors min-h-10 ${
-                    mode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  onClick={() => { setMode("login"); setError(""); }}
+                  className={`font-bold py-3 rounded-xl transition-colors min-h-11 ${
+                    mode === "login" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  {label}
+                  {t("login.signIn")}
                 </button>
-              ))}
-            </div>
-          )}
+                <button
+                  type="button"
+                  onClick={() => { setMode("register-student"); setError(""); }}
+                  className={`font-bold py-3 rounded-xl transition-colors min-h-11 ${
+                    mode !== "login" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {t("login.registerBtn")}
+                </button>
+              </div>
+            )}
 
-          {!cloud && mode === "login" && (
-            <>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground mb-2 tracking-tight">
+              {mode === "login" ? t("login.title") : t("login.registerTitle")}
+            </h2>
+            <p className="text-muted-foreground text-sm mb-6">
+              {mode === "login"
+                ? (cloud ? "Shkruaj email-in dhe fjalëkalimin e llogarisë sate." : t("login.subtitle"))
+                : mode === "register-teacher"
+                  ? t("login.registerTeacherHint")
+                  : t("login.registerStudentHint")}
+            </p>
+
+            {cloud && mode !== "login" && (
+              <fieldset className="mb-6">
+                <legend className="text-sm font-bold text-foreground mb-3">Lloji i llogarisë</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => { setMode("register-student"); setError(""); }}
+                    className={`flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-colors min-h-12 ${
+                      mode === "register-student" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    <User size={18} /> {t("login.tabStudent")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setMode("register-teacher"); setError(""); }}
+                    className={`flex items-center justify-center gap-2 rounded-2xl border-2 p-3.5 text-sm font-bold transition-colors min-h-12 ${
+                      mode === "register-teacher" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
+                    }`}
+                  >
+                    <GraduationCap size={18} /> {t("login.tabTeacher")}
+                  </button>
+                </div>
+              </fieldset>
+            )}
+
+            {!cloud && mode === "login" && (
+              <>
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <button onClick={() => doLogin("mesuesi@mesolehte.com", "demo123")} disabled={loading}
                   className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 transition-all text-sm font-bold text-primary min-h-[5.5rem]">
@@ -186,10 +213,10 @@ export default function Login() {
                 <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("login.or")}</span>
                 <div className="flex-1 h-px bg-border" />
               </div>
-            </>
-          )}
+              </>
+            )}
 
-          <form onSubmit={handleSubmit} noValidate className="space-y-4">
+            <form onSubmit={handleSubmit} noValidate className="space-y-4">
             {mode !== "login" && (
               <div>
                 <label htmlFor="name" className="block mb-2">{t("login.name")}</label>
@@ -247,14 +274,19 @@ export default function Login() {
                 <><div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> {t("login.signingIn")}</>
               ) : mode === "login" ? t("login.signIn") : t("login.registerBtn")}
             </button>
-          </form>
+            </form>
 
-          {!cloud && (
-            <div className="mt-6 p-4 bg-muted/80 rounded-2xl text-xs text-muted-foreground space-y-1 border border-border">
-              <p><span className="font-bold text-foreground">{t("login.demoTeacher")}</span> mesuesi@mesolehte.com · demo123</p>
-              <p><span className="font-bold text-foreground">{t("login.demoStudent")}</span> nxenesi@mesolehte.com · demo123</p>
-            </div>
-          )}
+            {!cloud && (
+              <div className="mt-6 p-4 bg-muted/80 rounded-2xl text-xs text-muted-foreground space-y-1 border border-border">
+                <p><span className="font-bold text-foreground">{t("login.demoTeacher")}</span> mesuesi@mesolehte.com · demo123</p>
+                <p><span className="font-bold text-foreground">{t("login.demoStudent")}</span> nxenesi@mesolehte.com · demo123</p>
+              </div>
+            )}
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-5">
+            <Link to="/" className="hover:text-foreground underline underline-offset-4">Kthehu te faqja kryesore</Link>
+          </p>
         </div>
       </div>
     </div>
